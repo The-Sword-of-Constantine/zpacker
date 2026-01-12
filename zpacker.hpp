@@ -8,11 +8,7 @@
 #include <vector>
 #include <numeric>
 
-#define _REQUIRE_READER(__x, __y) std::enable_if_t<zeus::is_reader_v<__x, __y>, int> = 0
-
-#define _REQUIRE_WRITER(__x, __y) std::enable_if_t<zeus::is_writer_v<__x, __y>, int> = 0
-
-namespace zeus
+namespace zpacker
 {
     template <class...>
     inline constexpr bool Always_false = false;
@@ -336,7 +332,7 @@ namespace zeus
     template <class _Ty>
     constexpr data_type get_data_type()
     {
-        constexpr std::size_t _Size = sizeof(_Ty);
+        constexpr size_t _Size = sizeof(_Ty);
 
         if constexpr (is_specialize_of_v<_Ty, std::pair>)
             return d_pair;
@@ -377,19 +373,19 @@ namespace zeus
 #pragma pack(push, 1)
     struct data_header
     {
-        std::uint8_t type;
+        uint8_t type;
         std::uint32_t length;
 
         void set_main_type(data_type dt)
         {
             this->type &= 0xf0;
-            this->type |= static_cast<std::uint8_t>(dt);
+            this->type |= static_cast<uint8_t>(dt);
         }
 
         void set_sub_type(data_type dt)
         {
             this->type &= 0x0f;
-            this->type |= static_cast<std::uint8_t>(dt) << 4;
+            this->type |= static_cast<uint8_t>(dt) << 4;
         }
 
         data_type get_main_type()
@@ -426,7 +422,7 @@ namespace zeus
 
         union
         {
-            std::uint8_t crc8;
+            uint8_t crc8;
             std::uint16_t crc16;
             std::uint32_t crc32;
         } crc;
@@ -438,13 +434,13 @@ namespace zeus
             version = ver;
         }
 
-        void set_major_version(std::uint8_t major)
+        void set_major_version(uint8_t major)
         {
             version &= 0x00ff;
             version |= (std::uint16_t)major << 8;
         }
 
-        void set_minor_version(std::uint8_t minor)
+        void set_minor_version(uint8_t minor)
         {
             version &= 0xff00;
             version |= (std::uint16_t)minor;
@@ -454,7 +450,7 @@ namespace zeus
 
     struct empty_checksum
     {
-        std::uint32_t operator()(const uint8_t *data, std::size_t length) const
+        std::uint32_t operator()(const uint8_t *data, size_t length) const
         {
             (void *)data;
             (void *)length;
@@ -463,11 +459,11 @@ namespace zeus
         }
     };
 
-    constexpr std::uint8_t polynomial_crc8 = 0x07;
+    constexpr uint8_t polynomial_crc8 = 0x07;
 
-    constexpr std::uint8_t entry_crc8(std::uint8_t i)
+    constexpr uint8_t entry_crc8(uint8_t i)
     {
-        std::uint8_t crc = i;
+        uint8_t crc = i;
 
         for (int j = 0; j < 8; ++j)
             crc = (crc & 0x80) ? (crc << 1) ^ polynomial_crc8 : (crc << 1);
@@ -477,19 +473,19 @@ namespace zeus
 
     constexpr auto generate_crc8_table()
     {
-        std::array<std::uint8_t, 256> table = {};
+        std::array<uint8_t, 256> table = {};
 
-        for (std::size_t i = 0; i < table.size(); ++i)
-            table[i] = entry_crc8(static_cast<std::uint8_t>(i));
+        for (size_t i = 0; i < table.size(); ++i)
+            table[i] = entry_crc8(static_cast<uint8_t>(i));
 
         return table;
     }
 
-    static constexpr std::array<std::uint8_t, 256> CRC8_TABLE = generate_crc8_table();
+    static constexpr std::array<uint8_t, 256> CRC8_TABLE = generate_crc8_table();
 
     constexpr std::uint16_t polynomial_crc16 = 0x1021;
 
-    constexpr std::uint16_t entry_crc16(std::uint8_t i)
+    constexpr std::uint16_t entry_crc16(uint8_t i)
     {
         std::uint16_t crc = static_cast<std::uint16_t>(i) << 8;
 
@@ -503,8 +499,8 @@ namespace zeus
     {
         std::array<std::uint16_t, 256> table = {};
 
-        for (std::size_t i = 0; i < table.size(); ++i)
-            table[i] = entry_crc16(static_cast<std::uint8_t>(i));
+        for (size_t i = 0; i < table.size(); ++i)
+            table[i] = entry_crc16(static_cast<uint8_t>(i));
 
         return table;
     }
@@ -527,7 +523,7 @@ namespace zeus
     {
         std::array<std::uint32_t, 256> table = {};
 
-        for (std::size_t i = 0; i < table.size(); ++i)
+        for (size_t i = 0; i < table.size(); ++i)
             table[i] = entry_crc32(static_cast<std::uint32_t>(i));
 
         return table;
@@ -537,9 +533,9 @@ namespace zeus
 
     struct crc8_checksum
     {
-        std::uint8_t operator()(const std::uint8_t *data, std::size_t length) const
+        uint8_t operator()(const uint8_t *data, size_t length) const
         {
-            std::uint8_t crc = 0x0;
+            uint8_t crc = 0x0;
 
             for (size_t i = 0; i < length; ++i)
                 crc = CRC8_TABLE[crc ^ data[i]];
@@ -550,7 +546,7 @@ namespace zeus
 
     struct crc16_checksum
     {
-        std::uint16_t operator()(const std::uint8_t *data, std::size_t length) const
+        std::uint16_t operator()(const uint8_t *data, size_t length) const
         {
             std::uint16_t crc = 0xFFFF;
 
@@ -563,32 +559,32 @@ namespace zeus
 
     struct crc32_checksum
     {
-        std::uint32_t operator()(const std::uint8_t *data, std::size_t length) const
+        std::uint32_t operator()(const uint8_t *data, size_t length) const
         {
             std::uint32_t crc = 0xFFFFFFFF;
 
-            for (std::size_t i = 0; i < length; ++i)
+            for (size_t i = 0; i < length; ++i)
                 crc = (crc >> 8) ^ CRC32_TABLE[(crc ^ data[i]) & 0xFF];
 
             return ~crc;
         }
     };
 
-    constexpr std::size_t _default_reserve_size = 4096;
+    constexpr size_t _default_reserve_size = 4096;
 
     struct empty_encoder
     {
-        std::vector<std::uint8_t> operator()(const void *input, size_t length) const
+        std::vector<uint8_t> operator()(const void *input, size_t length) const
         {
-            return std::vector<std::uint8_t>{(uint8_t *)input, (uint8_t *)input + length};
+            return std::vector<uint8_t>{(uint8_t *)input, (uint8_t *)input + length};
         }
     };
 
     struct empty_decoder
     {
-        std::vector<std::uint8_t> operator()(const void *input, size_t length) const
+        std::vector<uint8_t> operator()(const void *input, size_t length) const
         {
-            return std::vector<std::uint8_t>{(uint8_t *)input, (uint8_t *)input + length};
+            return std::vector<uint8_t>{(uint8_t *)input, (uint8_t *)input + length};
         }
     };
 
@@ -605,7 +601,7 @@ namespace zeus
     class bytes_reader
     {
     public:
-        bytes_reader(const std::vector<std::uint8_t> &data) : m_data(std::addressof(data)) {}
+        bytes_reader(const std::vector<uint8_t> &data) : m_data(std::addressof(data)) {}
 
         template <class _Vty>
         _Vty read()
@@ -615,7 +611,7 @@ namespace zeus
                 if (!can_read<_Vty>())
                     return _Vty{};
 
-                auto result = *reinterpret_cast<_Vty *>(const_cast<std::uint8_t *>(m_data->data()) + m_pos);
+                auto result = *reinterpret_cast<_Vty *>(const_cast<uint8_t *>(m_data->data()) + m_pos);
 
                 m_pos += sizeof(_Vty);
 
@@ -635,11 +631,11 @@ namespace zeus
             return *this;
         }
 
-        std::vector<std::uint8_t> read_bytes(size_t count)
+        std::vector<uint8_t> read_bytes(size_t count)
         {
             auto available = (std::min)(count, m_data->size() - count);
 
-            auto result = std::vector<std::uint8_t>{m_data->data() + m_pos, m_data->data() + m_pos + available};
+            auto result = std::vector<uint8_t>{m_data->data() + m_pos, m_data->data() + m_pos + available};
 
             m_pos += available;
 
@@ -652,7 +648,7 @@ namespace zeus
             return remaining() >= sizeof(_Vty);
         }
 
-        std::size_t remaining() const
+        size_t remaining() const
         {
             return m_data->size() - m_pos;
         }
@@ -666,33 +662,33 @@ namespace zeus
             return m_pos;
         }
 
-        void skip(std::size_t count)
+        void skip(size_t count)
         {
             if (remaining() >= count)
                 m_pos += count;
         }
 
-        void seek(std::size_t pos)
+        void seek(size_t pos)
         {
             if (pos < m_data->size() - count())
                 m_pos = pos;
         }
 
-        void reset(const std::vector<std::uint8_t> *data)
+        void reset(const std::vector<uint8_t> *data)
         {
             m_pos = 0;
             m_data = data;
         }
 
     private:
-        std::size_t m_pos{0};
-        const std::vector<std::uint8_t> *m_data;
+        size_t m_pos{0};
+        const std::vector<uint8_t> *m_data;
     };
 
     class bytes_reader_bounded
     {
     public:
-        bytes_reader_bounded(const std::uint8_t *data, std::size_t length) : m_data(data), m_length(length) {}
+        bytes_reader_bounded(const uint8_t *data, size_t length) : m_data(data), m_length(length) {}
 
         template <class _Vty>
         _Vty read()
@@ -724,11 +720,11 @@ namespace zeus
             return *this;
         }
 
-        std::vector<std::uint8_t> read_bytes(size_t count)
+        std::vector<uint8_t> read_bytes(size_t count)
         {
             auto available = (std::min)(count, m_length - count);
 
-            auto result = std::vector<std::uint8_t>{m_data + m_pos, m_data + m_pos + available};
+            auto result = std::vector<uint8_t>{m_data + m_pos, m_data + m_pos + available};
 
             m_pos += available;
 
@@ -741,29 +737,29 @@ namespace zeus
             return remaining() >= sizeof(_Vty);
         }
 
-        std::size_t remaining() const
+        size_t remaining() const
         {
             return m_length - m_pos;
         }
 
-        void skip(std::size_t count)
+        void skip(size_t count)
         {
             if (remaining() >= count)
                 m_pos += count;
         }
 
-        std::size_t count() const
+        size_t count() const
         {
             return m_pos;
         }
 
-        void seek(std::size_t pos)
+        void seek(size_t pos)
         {
             if (pos < m_length - count())
                 m_pos = pos;
         }
 
-        void reset(const std::uint8_t *data, std::size_t length)
+        void reset(const uint8_t *data, size_t length)
         {
             m_pos = 0;
             m_data = data;
@@ -771,22 +767,22 @@ namespace zeus
         }
 
     private:
-        std::size_t m_pos{0};
-        const std::uint8_t *m_data{nullptr};
-        std::size_t m_length{0};
+        size_t m_pos{0};
+        const uint8_t *m_data{nullptr};
+        size_t m_length{0};
     };
 
     class bytes_writer
     {
     public:
-        bytes_writer(std::vector<std::uint8_t> &data) : m_data(std::addressof(data)) {}
+        bytes_writer(std::vector<uint8_t> &data) : m_data(std::addressof(data)) {}
 
         template <class _Vty>
         void write(const _Vty &val)
         {
             if constexpr (std::is_trivially_copyable_v<_Vty>)
             {
-                auto begin = (std::uint8_t *)std::addressof(val);
+                auto begin = (uint8_t *)std::addressof(val);
 
                 m_data->insert(m_data->end(), begin, begin + sizeof(_Vty));
             }
@@ -796,12 +792,12 @@ namespace zeus
             }
         }
 
-        void write(const std::vector<std::uint8_t> &data)
+        void write(const std::vector<uint8_t> &data)
         {
             std::copy(data.begin(), data.end(), std::back_inserter(*m_data));
         }
 
-        void write(const std::uint8_t *data, std::size_t length)
+        void write(const uint8_t *data, size_t length)
         {
             std::copy(data, data + length, std::back_inserter(*m_data));
         }
@@ -814,7 +810,7 @@ namespace zeus
             return *this;
         }
 
-        void reset(std::vector<std::uint8_t> &data)
+        void reset(std::vector<uint8_t> &data)
         {
             m_data = std::addressof(data);
         }
@@ -834,13 +830,13 @@ namespace zeus
         }
 
     private:
-        std::vector<std::uint8_t> *m_data;
+        std::vector<uint8_t> *m_data;
     };
 
     class bytes_writer_bounded
     {
     public:
-        bytes_writer_bounded(std::uint8_t *data, std::size_t length) : m_data(data), m_length(length) {}
+        bytes_writer_bounded(uint8_t *data, size_t length) : m_data(data), m_length(length) {}
 
         template <class _Vty>
         void write(const _Vty &val)
@@ -860,7 +856,7 @@ namespace zeus
             }
         }
 
-        void write(const std::uint8_t *data, std::size_t length)
+        void write(const uint8_t *data, size_t length)
         {
             auto _copy_len = (std::min)(length, m_length - m_pos);
 
@@ -886,7 +882,7 @@ namespace zeus
             return remaining() >= sizeof(_Vty);
         }
 
-        void reset(std::uint8_t *data, std::size_t length)
+        void reset(uint8_t *data, size_t length)
         {
             m_pos = 0;
             m_data = data;
@@ -896,24 +892,24 @@ namespace zeus
         /*
          * Get the total bytes written
          */
-        std::size_t count() const
+        size_t count() const
         {
             return m_pos;
         }
 
-        std::size_t remaining() const
+        size_t remaining() const
         {
             return m_length - m_pos;
         }
 
     private:
-        std::uint8_t *m_data{nullptr};
-        std::size_t m_pos{0};
-        std::size_t m_length{0};
+        uint8_t *m_data{nullptr};
+        size_t m_pos{0};
+        size_t m_length{0};
     };
 
     template <class _Ty>
-    constexpr std::size_t get_size(const _Ty &);
+    constexpr size_t get_size(const _Ty &);
 
     namespace detail
     {
@@ -976,9 +972,9 @@ namespace zeus
     }
 
     template <class _Ty>
-    constexpr void get_object_size(const _Ty &object, std::size_t &size)
+    constexpr void get_object_size(const _Ty &object, size_t &size)
     {
-        constexpr std::size_t header_size = sizeof(data_header);
+        constexpr size_t header_size = sizeof(data_header);
 
         static_assert(!std::is_pointer_v<remove_cvref_t<_Ty>>, "value_type in container _Ty to be serialized can not be pointer type");
 
@@ -1063,9 +1059,9 @@ namespace zeus
      * Calculate the memory space size needed for serialization / deserialization of the object
      */
     template <class _Ty>
-    constexpr std::size_t get_size(const _Ty &object)
+    constexpr size_t get_size(const _Ty &object)
     {
-        std::size_t result{};
+        size_t result{};
 
         get_object_size(object, result);
 
@@ -1172,7 +1168,7 @@ namespace zeus
             else
             {
                 std::uint32_t _size{0};
-                std::vector<std::uint8_t> _partial;
+                std::vector<uint8_t> _partial;
 
                 _partial.reserve(_default_reserve_size);
 
@@ -1325,10 +1321,10 @@ namespace zeus
     template <
         class _Ty,
         class _CheckSum = empty_checksum>
-    std::vector<std::uint8_t> serialize(const _Ty &value, _CheckSum checksum = empty_checksum{})
+    std::vector<uint8_t> serialize(const _Ty &value, _CheckSum checksum = empty_checksum{})
     {
-        std::vector<std::uint8_t> data{};
-        std::vector<std::uint8_t> result{};
+        std::vector<uint8_t> data{};
+        std::vector<uint8_t> result{};
 
         data.reserve(_default_reserve_size);
 
@@ -1363,13 +1359,13 @@ namespace zeus
     template <
         class _Ty,
         class _CheckSum = empty_checksum>
-    std::vector<std::uint8_t> serialize(
+    std::vector<uint8_t> serialize(
         const void *buffer,
         size_t bufsize,
         const _Ty &value,
         _CheckSum checksum = empty_checksum{})
     {
-        std::vector<std::uint8_t> result{};
+        std::vector<uint8_t> result{};
 
         bytes_writer_bounded writer{(uint8_t *)buffer, bufsize};
 
@@ -1403,7 +1399,7 @@ namespace zeus
         class _Ty,
         class _CheckSum = empty_checksum,
         std::enable_if_t<std::is_default_constructible_v<_Ty>, int> = 0>
-    _Ty deserialize(const std::vector<std::uint8_t> &data, _CheckSum checksum = empty_checksum{})
+    _Ty deserialize(const std::vector<uint8_t> &data, _CheckSum checksum = empty_checksum{})
     {
         bytes_reader reader{data};
 

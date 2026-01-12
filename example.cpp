@@ -6,6 +6,7 @@
 #include <new>
 #include <sstream>
 #include <queue>
+#include <fstream>
 
 #include "zpacker.hpp"
 
@@ -17,16 +18,16 @@ struct Row
     std::size_t get_size() const
     {
         // can also be: sizeof(value) + zeus::get_size(data)
-        return zeus::get_size(value) + zeus::get_size(data);
+        return zpacker::get_size(value) + zpacker::get_size(data);
     }
 
-    template <class _Writer, std::enable_if_t<zeus::is_writer_v<_Writer, Row>, int> = 0>
+    template <class _Writer>
     void serialize(_Writer &writer) const
     {
         writer << value << data;
     }
 
-    template <class _Reader, std::enable_if_t<zeus::is_reader_v<_Reader, Row>, int> = 0>
+    template <class _Reader>
     static Row deserialize(_Reader &reader)
     {
         Row self{};
@@ -75,16 +76,16 @@ struct Complicated
 
     std::size_t get_size() const
     {
-        return zeus::get_size(name) + zeus::get_size(map);
+        return zpacker::get_size(name) + zpacker::get_size(map);
     }
 
-    template <class _Writer, std::enable_if_t<zeus::is_writer_v<_Writer, Complicated>, int> = 0>
+    template <class _Writer>
     void serialize(_Writer &writer) const
     {
         writer << name << map;
     }
 
-    template <class _Reader, std::enable_if_t<zeus::is_reader_v<_Reader, Complicated>, int> = 0>
+    template <class _Reader>
     static Complicated deserialize(_Reader &reader)
     {
         Complicated self{};
@@ -95,13 +96,43 @@ struct Complicated
     }
 };
 
+struct Streamable
+{
+    std::vector<std::string> data { "1", "2", "3", "4" };
+
+    template <class _Writer>
+    void serialize(_Writer& writer) const
+    {
+        writer << data;
+    }
+
+    template <class _Reader>
+    static Streamable deserialize(_Reader& reader)
+    {
+        Streamable s{};
+
+        reader >> s.data;
+    }
+
+    friend std::ostream& operator << (std::ostream& s, const Streamable& o)
+    {
+        std::vector<uint8_t> serialized{};
+
+        zpacker::bytes_writer writer{serialized};
+
+        zpacker::serialize_object(writer, o);
+
+        return s.write(reinterpret_cast<const char*>(serialized.data()), serialized.size());
+    }
+};
+
 void association_container_example()
 {
     std::unordered_map<std::string, uint32_t> map1{{"Jacky", 68}, {"Element", 97}, {"Bob", 45}};
 
-    auto data1 = zeus::serialize(map1);
+    auto data1 = zpacker::serialize(map1);
 
-    auto object = zeus::deserialize<decltype(map1)>(data1);
+    auto object = zpacker::deserialize<decltype(map1)>(data1);
 
     std::for_each(object.begin(), object.end(), [](const auto &v)
                   { printf("name: %s, score: %d\n", v.first.c_str(), v.second); });
@@ -113,11 +144,11 @@ void sequence_container_example()
 
     std::vector<uint8_t> buffer;
 
-    zeus::bytes_writer writer{buffer};
+    zpacker::bytes_writer writer{buffer};
 
     writer << bin;
 
-    zeus::bytes_reader reader{buffer};
+    zpacker::bytes_reader reader{buffer};
 
     auto data = reader.read<std::vector<int>>();
 
@@ -128,13 +159,13 @@ void sequence_container_example()
 void composite_example()
 {
     std::vector<uint8_t> buffer;
-    zeus::bytes_writer writer{buffer};
+    zpacker::bytes_writer writer{buffer};
 
     Complicated complicated{};
 
     writer << complicated;
 
-    zeus::bytes_reader reader{buffer};
+    zpacker::bytes_reader reader{buffer};
 
     reader.reset(&buffer);
 
@@ -147,23 +178,23 @@ void composite_example()
                   { printf("[%d, %s]\n", v.first, v.second.print().c_str()); });
 
     /* pack the serialized data of object */
-    auto packed = zeus::serialize(complicated);
+    auto packed = zpacker::serialize(complicated);
 
     /* unpack the serialized data */
-    auto object = zeus::deserialize<Complicated>(packed);
+    auto object = zpacker::deserialize<Complicated>(packed);
 }
 
 void array_example()
 {
     std::array<int, 5> arr1 = {1, 2, 3, 4, 5};
 
-    auto bin1 = zeus::serialize(arr1);
+    auto bin1 = zpacker::serialize(arr1);
 
     // this is an error, std::array can not be dynamically construct
     // auto object = zeus::deserialize<decltype(arr1)>(bin1);
 
     /* deserialize into a std::vector<int> */
-    auto object = zeus::deserialize<std::vector<int>>(bin1);
+    auto object = zpacker::deserialize<std::vector<int>>(bin1);
 
     std::for_each(object.begin(), object.end(), [](const auto &v)
                   { printf("value = %d\n", v); });
@@ -171,10 +202,10 @@ void array_example()
 
 void forward_list_example()
 {
-    auto bin1 = zeus::serialize(std::forward_list<int>{1, 2, 3, 4});
+    auto bin1 = zpacker::serialize(std::forward_list<int>{1, 2, 3, 4});
 
     /* deserialize into a std::queue */
-    auto object = zeus::deserialize<std::deque<int>>(bin1);
+    auto object = zpacker::deserialize<std::deque<int>>(bin1);
 
     while (!object.empty())
     {
@@ -189,13 +220,13 @@ void variant_example()
     std::vector<uint8_t> buffer;
     std::variant<int, char, std::wstring> v1{L"serialization"};
 
-    zeus::bytes_writer writer{buffer};
+    zpacker::bytes_writer writer{buffer};
 
-    zeus::serialize_object(writer, v1);
+    zpacker::serialize_object(writer, v1);
 
-    zeus::bytes_reader reader{buffer};
+    zpacker::bytes_reader reader{buffer};
 
-    auto object = zeus::deserialize_object<decltype(v1)>(reader);
+    auto object = zpacker::deserialize_object<decltype(v1)>(reader);
 
     printf("index = %zd, value = %ls\n", object.index(), std::get<std::wstring>(object).c_str());
 }
@@ -204,9 +235,9 @@ void tuple_example()
 {
     std::tuple<std::string, uint32_t, std::string, uint32_t> t1{"192.168.10.1", 3768, "202.113.76.68", 80};
 
-    auto data1 = zeus::serialize(t1);
+    auto data1 = zpacker::serialize(t1);
 
-    auto object = zeus::deserialize<decltype(t1)>(data1);
+    auto object = zpacker::deserialize<decltype(t1)>(data1);
 
     printf("%s:%u -> %s:%u\n", std::get<0>(object).c_str(), std::get<1>(object), std::get<2>(object).c_str(), std::get<3>(object));
 }
@@ -215,19 +246,19 @@ void get_size_example()
 {
     std::variant<std::wstring, int, long double> var1{L"Bob"};
 
-    auto size1 = zeus::get_size<decltype(var1)>(var1);
+    auto size1 = zpacker::get_size<decltype(var1)>(var1);
 
     std::tuple<std::string, int, double> var2{"Bob", 3435, 3.1415926};
 
-    auto size2 = zeus::get_size<decltype(var2)>(var2);
+    auto size2 = zpacker::get_size<decltype(var2)>(var2);
 
     std::variant<std::list<int>, long, float, char> var3{(long)4};
 
-    auto size3 = zeus::get_size<decltype(var3)>(var3);
+    auto size3 = zpacker::get_size<decltype(var3)>(var3);
 
     std::tuple<int, std::wstring, std::vector<std::string>, float> var4{8, L"Bob", {"Jacky", "Element", "ElementX"}, 3.14f};
 
-    auto size4 = zeus::get_size<decltype(var4)>(var4);
+    auto size4 = zpacker::get_size<decltype(var4)>(var4);
 
     printf("size1 = %zd, size2 = %zd, size3 = %zd, size4 = %zd\n", size1, size2, size3, size4);
 }
@@ -236,9 +267,9 @@ void test_multi_map()
 {
     std::unordered_multimap<std::string, int> multimap1{{"Jacky", 64}, {"Jacky", 32}};
 
-    auto data1 = zeus::serialize(multimap1);
+    auto data1 = zpacker::serialize(multimap1);
 
-    auto object = zeus::deserialize<decltype(multimap1)>(data1);
+    auto object = zpacker::deserialize<decltype(multimap1)>(data1);
 
     std::for_each(object.begin(), object.end(), [](const decltype(multimap1)::value_type &v)
                   { printf("name: %s, salary: %d\n", v.first.c_str(), v.second); });
@@ -254,14 +285,14 @@ struct CustomType
     CustomType() : id(0), name("jacky"), salary(3267), friends{"Bob", "Element"} {}
 
     // user defined `serialize` method for static binding
-    template <class _Writer, std::enable_if_t<zeus::is_writer_v<_Writer, Complicated>, int> = 0>
+    template <class _Writer>
     void serialize(_Writer &writer) const
     {
         writer << id << name << friends;
     }
 
     // user defined `deserialize` method for static binding
-    template <class _Reader, std::enable_if_t<zeus::is_reader_v<_Reader, Complicated>, int> = 0>
+    template <class _Reader>
     static CustomType deserialize(_Reader &reader)
     {
         CustomType self{};
@@ -276,9 +307,23 @@ void custom_type_example()
 {
     CustomType custom{};
 
-    auto data = zeus::serialize(custom);
+    auto data = zpacker::serialize(custom);
 
-    auto object = zeus::deserialize<decltype(custom)>(data);
+    auto object = zpacker::deserialize<decltype(custom)>(data);
+}
+
+void stream_example()
+{
+    Streamable s{};
+    
+    std::ofstream os;
+
+    os.open("1.bin", std::ios::binary);
+
+    os << s;
+
+    os.flush();
+    os.close();
 }
 
 int main(int argc, char const *argv[])
@@ -295,6 +340,17 @@ int main(int argc, char const *argv[])
     association_container_example();
 
     test_multi_map();
+
+    stream_example();
+
+    struct Test 
+    {
+        Test() = delete;
+
+        Test(Test&&) = default;
+    };
+
+    static_assert(std::is_move_constructible_v<Test>);
 
     return 0;
 }
