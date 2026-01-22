@@ -7,8 +7,10 @@
 #include <sstream>
 #include <queue>
 #include <fstream>
+#include <map>
 
 #include "zpacker.hpp"
+//#include "zpacker_20.hpp"
 
 struct Row
 {
@@ -342,15 +344,6 @@ int main(int argc, char const *argv[])
     test_multi_map();
 
     stream_example();
-
-    struct Test 
-    {
-        Test() = delete;
-
-        Test(Test&&) = default;
-    };
-
-    static_assert(std::is_move_constructible_v<Test>);
 
     return 0;
 }
